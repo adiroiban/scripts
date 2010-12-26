@@ -10,10 +10,14 @@ Created by Adi Roiban. Distributed under WTFPL 2.0.
 import re
 import sys
 import urllib2
+from email.mime.text import MIMEText
 from optparse import OptionParser
-from pprint import pprint
+from pprint import pprint, pformat
+from smtplib import SMTP
+from socket import error as SocketError
 from BeautifulSoup import BeautifulSoup
 
+EMAG_BASE_URL = 'http://www.emag.ro'
 EMAG_RESIGILATE_BASE_URL = 'http://www.emag.ro/resigilate'
 
 # Regular expression for searching page link
@@ -24,6 +28,30 @@ EMAG_RESIGILATE_LINK_RE = 'resigilate/p(\d+)'
 # group 1 should contain the name and group 2 the value
 # Attribute value can end with a new line, end of text or some <tag>
 EMAG_RESIGILATE_ATTRIBUTE_RE ='<strong>(.*):</strong>([^<]*)'
+
+# SMTP server used for sending emails. Set None for using default server.
+EMAIL_SERVER = None
+# SMTP server port. Ignored if EMAIL_SERVER is None.
+# Make sure your provider is not blocking port 25.
+# For Dreamhost you can use 587
+EMAIL_PORT = 25
+# Connect to SMTP server using TLS.
+EMAIL_TLS = False
+# SMTP username. Set None for not using SMTP authentication
+EMAIL_USERNAME = None
+#  SMTP password. Ignored if EMAIL_USERNAME is None.
+EMAIL_PASSWORD = ''
+
+# Email address use to set the From email field.
+EMAIL_FROM = 'Resigilate Script <no-reply@example.com>'
+# Subject tag when products list is not empty.
+EMAIL_SUBJECT_GOT_RESULTS = '[good news]'
+# Subject tag when no products list is empty.
+EMAIL_SUBJECT_NO_RESULTS = '[no news]'
+# Text use as email subject.
+EMAIL_SUBJECT = 'Results from eMag resigilate'
+# Signature used for email message.
+EMAIL_SIGNATURE = '\n\n--\nYour faithful servant,\nRobocut'
 
 
 def get_all_products(category_id):
@@ -74,7 +102,7 @@ def test_get_page():
     EMAG_RESIGILATE_BASE_URL = 'http://nosuch.domain.in.world/page'
     try:
         try:
-            get_page(1,1)
+            get_page(1, 1)
         except urllib2.URLError:
             pass
         except:
@@ -86,7 +114,7 @@ def test_get_page():
 def get_all_products_from_page(soup):
     '''Return a list of all products from a page.'''
     products_div = soup.findAll(
-        "div", { "style" : "height:auto; position:relative;" })
+        "div", {"style": "height:auto; position:relative;"})
     result = []
     for product_div in products_div:
         result.append(get_product(product_div))
@@ -129,7 +157,7 @@ def test_get_all_products_from_page():
         <div class="top">
         <div class="pret-vechi" title="Pret vechi">
         <span class="old-price">
-            242,<sup class="money-decimal">24</sup> Lei</span>  
+            242,<sup class="money-decimal">24</sup> Lei</span>
         <span class="price-diff">
             (-42,<sup class="money-decimal">25</sup> Lei)</span>
         </div>
@@ -165,7 +193,7 @@ def test_get_all_products_from_page():
         <div class="top">
         <div class="pret-vechi" title="Pret vechi">
         <span class="old-price">
-            210,<sup class="money-decimal">99</sup> Lei</span>  
+            210,<sup class="money-decimal">99</sup> Lei</span>
         <span class="price-diff">
             (-21,<sup class="money-decimal">00</sup> Lei)</span>
         </div>
@@ -292,7 +320,8 @@ def get_product(product_div):
 
     details_div = product_div.find('div', {'class': 'col-2-prod'})
     product['name'] = details_div.find('a').string.strip()
-    product['link'] = details_div.find('a').get('href').strip()
+    product['link'] = (
+        EMAG_BASE_URL + details_div.find('a').get('href').strip())
     for attribute_li in details_div.findAll('li'):
         content = attribute_li.renderContents()
         re_match = re.search(EMAG_RESIGILATE_ATTRIBUTE_RE, content)
@@ -355,7 +384,7 @@ def test_get_product():
         '''
     product = get_product(create_tag(product_tag))
     assert product['name'] == 'PRODUCT_NAME'
-    assert product['link'] == 'LINK_TO_PRODUCT'
+    assert product['link'] == EMAG_BASE_URL + 'LINK_TO_PRODUCT'
     assert product['price'] == 3699.99
     assert product['old-price'] == 4189.99
     assert product['attr1_name'] == 'ATTR1_VALUE'
@@ -385,12 +414,12 @@ def test_get_price():
 
 
 EXPRESSION_HELP = '''
-EXPRESSION is a comma delimited of CONDITIONS: COND1,COND2,etc... 
+EXPRESSION is a comma delimited of CONDITIONS: COND1,COND2,etc...
 A product is listed only if it passes ALL conditions.
-CONDITION can have one of the following formats: 
+CONDITION can have one of the following formats:
 ATTRIBUTE < INTEGER_VALUE, ATTRIBUTE > INTEGER_VALUE,
 ATTRIBUTE = REGULAR_EXPRESION. Condition VALUES are not allowd to contain
-the following characters '=,<,>'. 
+the following characters '=,<,>'.
 Examples: "price<100,name=[Ss]ome.*thing"
 '''
 RULE_REGEX = '='
@@ -449,10 +478,10 @@ def test_filter_products():
         {'name': 'caca', 'price': 400},
         ]
 
-    filtered_products = filter_products(products_list,'name=caca')
+    filtered_products = filter_products(products_list, 'name=caca')
     assert len(filtered_products) == 2
 
-    filtered_products = filter_products(products_list,'name=caca,price<300')
+    filtered_products = filter_products(products_list, 'name=caca,price<300')
     assert len(filtered_products) == 1
 
 
@@ -481,7 +510,6 @@ def does_product_match_rule(product, rule):
         return False
 
 
-
 def test_does_product_match_rule():
     product = {
         'name': 'some name',
@@ -500,7 +528,6 @@ def test_does_product_match_rule():
         product, parse_rule('price>9')) is True
     assert does_product_match_rule(
         product, parse_rule('name=(some|caca)')) is True
-
 
 
 def parse_expression(expression):
@@ -676,6 +703,60 @@ def test_get_rule():
         assert False, 'ExpresionError not raised.'
 
 
+def list_products(products):
+    '''List products.'''
+    pprint(products)
+
+
+def email_products(products, options):
+    '''Send products over email.'''
+    email_subject = ''
+    if not options.email_subject:
+        email_main_subject = EMAIL_SUBJECT
+    else:
+        email_main_subject = options.subject
+
+    email_tag = ''
+    products_count = len(products)
+    if products_count > 0:
+        email_tag = EMAIL_SUBJECT_GOT_RESULTS
+    else:
+        email_tag = EMAIL_SUBJECT_NO_RESULTS
+
+    email_subject = '%s %s (%d-%d)' % (
+        email_tag, email_main_subject, options.category_id, products_count)
+    message_header = (
+        'Got %d results for products in category %d.\n'
+        'Using filter expression: "%s"\n\n' % (
+            products_count, options.category_id, options.filter))
+
+    message = MIMEText(message_header + pformat(products) + EMAIL_SIGNATURE)
+    message['Subject'] = email_subject
+    message['From'] = EMAIL_FROM
+    message['To'] = options.email
+    # Send the message via our own SMTP server, but don't include the
+    # envelope header.
+    server = None
+    try:
+        if EMAIL_SERVER is None:
+            server = SMTP()
+        else:
+            server = SMTP(EMAIL_SERVER, EMAIL_PORT)
+        if EMAIL_TLS is not None:
+            server.starttls()
+        if EMAIL_USERNAME is not None:
+            server.login(EMAIL_USERNAME, EMAIL_PASSWORD)
+        server.sendmail(
+            EMAIL_FROM, [options.email],
+            message.as_string())
+    except SocketError, error:
+        print 'Could not connect to SMTP server. %s' % str(error)
+        return
+    finally:
+        if server:
+            server.quit()
+
+
 def create_tag(text):
     '''Create a BeautifulSoup.Tag from a raw string.'''
     return BeautifulSoup(text).first()
@@ -727,9 +808,16 @@ def get_options_or_print_help():
         dest='test_exit', default=False,
         help='Exit tests on first failure.')
     parser.add_option(
-        '-f', '--filter', action='store', type="string", dest='filter',
+        '-f', '--filter', action='store', type='string', dest='filter',
         metavar="EXPRESSION", default='',
         help='Filter products based on EXPRESSION. %s' % EXPRESSION_HELP)
+    parser.add_option(
+        '-e', '--send-email', action='store', type='string', dest='email',
+        default='', metavar='EMAIL', help='Send results to EMAIL.')
+    parser.add_option(
+        '--email-subject', action='store', type='string',
+        dest='email_subject', default='', metavar='SUBJECT',
+        help='Use SUBJECT as email subject.')
 
     (options, args) = parser.parse_args()
     if len(args) > 0:
@@ -750,7 +838,11 @@ if __name__ == "__main__":
         print 'You must provide a category ID. See --help for usage.'
         sys.exit(1)
 
-    pprint(
-        filter_products(
-            products=get_all_products(options.category_id),
-            expression=options.filter))
+    products = filter_products(
+        products=get_all_products(options.category_id),
+        expression=options.filter)
+
+    if options.email != '':
+        email_products(products, options)
+    else:
+        list_products(products)
