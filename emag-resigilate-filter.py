@@ -13,7 +13,7 @@ import urllib2
 from email.mime.text import MIMEText
 from optparse import OptionParser
 from pprint import pprint, pformat
-from smtplib import SMTP
+from smtplib import SMTP, SMTPServerDisconnected
 from socket import error as SocketError
 from BeautifulSoup import BeautifulSoup
 
@@ -749,12 +749,13 @@ def email_products(products, options):
         server.sendmail(
             EMAIL_FROM, [options.email],
             message.as_string())
+        server.quit()
     except SocketError, error:
         print 'Could not connect to SMTP server. %s' % str(error)
         return
-    finally:
-        if server:
-            server.quit()
+    except SMTPServerDisconnected, error:
+        print 'Server does not accepts our credentials.'
+        return
 
 
 def create_tag(text):
