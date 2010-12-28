@@ -72,8 +72,7 @@ def get_all_products(category_id):
 
     number_of_pages = get_number_of_pages(page)
     if number_of_pages < 1:
-        print 'There are no product in this category.'
-        return
+        return []
 
     result = []
     for page_number in xrange(1, number_of_pages + 1):
@@ -755,7 +754,10 @@ def products_to_string(products):
 
 def list_products(products):
     '''List products.'''
-    print products_to_string(products)
+    if len(products) > 0:
+        print products_to_string(products)
+    else:
+        print 'No products found.'
 
 
 def email_products(products, options):
@@ -888,9 +890,14 @@ if __name__ == "__main__":
         print 'You must provide a category ID. See --help for usage.'
         sys.exit(1)
 
-    products = filter_products(
-        products=get_all_products(options.category_id),
-        expression=options.filter)
+    try:
+        products = filter_products(
+            products=get_all_products(options.category_id),
+            expression=options.filter)
+    except ExpresionError, error:
+        print str(error)
+        print 'See --help for usage'
+        sys.exit(2)
 
     if options.email != '':
         email_products(products, options)
