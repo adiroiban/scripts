@@ -643,7 +643,7 @@ def get_rule(rule_text, rule_identifier):
 
         if len(attribute) < 1:
             raise ExpresionError(
-                'Attribute can not be emptry for "%s".' % rule_text)
+                'Attribute can not be empty for "%s".' % rule_text)
 
         return {
             'type': rule_identifier,
@@ -661,6 +661,11 @@ def test_get_rule():
 
     rule = get_rule('caca', RULE_REGEX)
     assert rule is None
+
+    rule = get_rule('caca~maca', RULE_REGEX)
+    assert rule['type'] == RULE_REGEX
+    assert rule['attribute'] == 'caca'
+    assert rule['value'] == 'maca'
 
     rule = get_rule(' caca ~ maca ', RULE_REGEX)
     assert rule['type'] == RULE_REGEX
