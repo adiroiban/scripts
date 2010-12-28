@@ -61,7 +61,7 @@ EXPRESSION_HELP = '''
     ATTRIBUTE ~ REGULAR_EXPRESSION, ATTRIBUTE !~ REGULAR_EXPRESSION.
     '<' and '>' can only be used for integer values.
     Condition VALUES are not allowed to contain the following characters
-    '~,<,>'.
+    '~,!~,<,>'.
     Examples: "price<100,name~[Ss]ome.*thing,attr!~dont"
     '''
 RULE_REGEX = '~'
