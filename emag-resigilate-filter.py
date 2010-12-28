@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 '''This is the base code for scraping 'eMag resigilate' webpage
 
 It depends on re and BeatifulSoup.
@@ -23,7 +24,7 @@ EMAG_RESIGILATE_BASE_URL = 'http://www.emag.ro/resigilate'
 # group 1 should contain the page number.
 EMAG_RESIGILATE_LINK_RE = 'resigilate/p(\d+)'
 
-# Regular expresion for search product attributes
+# Regular expression for search product attributes
 # group 1 should contain the name and group 2 the value
 # Attribute value can end with a new line, end of text or some <tag>
 EMAG_RESIGILATE_ATTRIBUTE_RE ='<strong>(.*):</strong>([^<]*)'
@@ -51,6 +52,22 @@ EMAIL_SUBJECT_NO_RESULTS = '[no news]'
 EMAIL_SUBJECT = 'Results from eMag resigilate'
 # Signature used for email message.
 EMAIL_SIGNATURE = '\n--\nYour faithful servant,\nRobocut'
+
+EXPRESSION_HELP = '''
+    EXPRESSION is a comma delimited of CONDITIONS: COND1,COND2,etc...
+    A product is listed only if it passes ALL conditions.
+    CONDITION can have one of the following formats:
+    ATTRIBUTE < INTEGER_VALUE, ATTRIBUTE > INTEGER_VALUE,
+    ATTRIBUTE ~ REGULAR_EXPRESSION, ATTRIBUTE !~ REGULAR_EXPRESSION.
+    '<' and '>' can only be used for integer values.
+    Condition VALUES are not allowed to contain the following characters
+    '~,<,>'.
+    Examples: "price<100,name~[Ss]ome.*thing,attr!~dont"
+    '''
+RULE_REGEX = '~'
+RULE_REGEX_NOT = '!~'
+RULE_LESS = '<'
+RULE_GREATER = '>'
 
 
 def get_all_products(category_id):
@@ -419,21 +436,7 @@ def test_get_price():
     assert price == 4189
 
 
-EXPRESSION_HELP = '''
-EXPRESSION is a comma delimited of CONDITIONS: COND1,COND2,etc...
-A product is listed only if it passes ALL conditions.
-CONDITION can have one of the following formats:
-ATTRIBUTE < INTEGER_VALUE, ATTRIBUTE > INTEGER_VALUE,
-ATTRIBUTE ~ REGULAR_EXPRESION. Condition VALUES are not allowed to contain
-the following characters '~,<,>'.
-Examples: "price<100,name~[Ss]ome.*thing"
-'''
-RULE_REGEX = '~'
-RULE_LESS = '<'
-RULE_GREATER = '>'
-
-
-class ExpresionError(Exception):
+class ExpressionError(Exception):
     '''Exception raised when the filter expression is not valid.'''
 
     def __init__(self, message):
@@ -447,7 +450,7 @@ class ExpresionError(Exception):
 
 
 def filter_products(products, expression=''):
-    '''Filter products based on expresion.'''
+    '''Filter products based on expression.'''
     rules = parse_expression(expression)
 
     if len(rules) == 0:
@@ -501,17 +504,35 @@ def does_product_match_rule(product, rule):
             else:
                 return False
 
-        if rule['type'] == RULE_LESS:
-            if product[rule['attribute']] < rule['value']:
-                return True
-            else:
+        if rule['type'] == RULE_REGEX_NOT:
+            if re.search(rule['value'], product[rule['attribute']]):
                 return False
+            else:
+                return True
+
+        if rule['type'] == RULE_LESS:
+            try:
+                if int(product[rule['attribute']]) < rule['value']:
+                    return True
+                else:
+                    return False
+            except ValueError:
+                raise ExpressionError(
+                    'Value for attribute "%s" is not an integer and can not '
+                    'be used with a condition of type LESS.' % (
+                        rule['attribute']))
 
         if rule['type'] == RULE_GREATER:
-            if product[rule['attribute']] > rule['value']:
-                return True
-            else:
-                return False
+            try:
+                if int(product[rule['attribute']]) > rule['value']:
+                    return True
+                else:
+                    return False
+            except ValueError:
+                raise ExpressionError(
+                    'Value for attribute "%s" is not an integer and can not '
+                    'be used with a condition of type GREATER.' % (
+                        rule['attribute']))
     else:
         return False
 
@@ -524,6 +545,8 @@ def test_does_product_match_rule():
     assert does_product_match_rule(
         product, parse_rule('caca~maca')) is False
     assert does_product_match_rule(
+        product, parse_rule('caca!~caca')) is False
+    assert does_product_match_rule(
         product, parse_rule('price<9')) is False
     assert does_product_match_rule(
         product, parse_rule('price>11')) is False
@@ -534,6 +557,22 @@ def test_does_product_match_rule():
         product, parse_rule('price>9')) is True
     assert does_product_match_rule(
         product, parse_rule('name~(some|caca)')) is True
+    assert does_product_match_rule(
+        product, parse_rule('name!~caca')) is True
+
+    try:
+        parse_rule('price>10 luni')
+    except ExpressionError:
+        pass
+    except:
+        assert False, 'ExpressionError not raised.'
+
+    try:
+        parse_rule('price<10 luni')
+    except ExpressionError:
+        pass
+    except:
+        assert False, 'ExpressionError not raised.'
 
 
 def parse_expression(expression):
@@ -559,21 +598,31 @@ def test_parse_expression():
     rules = parse_expression('')
     assert len(rules) == 0
 
-    rules = parse_expression('caca <4,raca>5, oaca~zaca ')
-    assert len(rules) == 3
+    rules = parse_expression('caca <4,raca>5, oaca~zaca, maca!~daca')
+    assert len(rules) == 4
     assert rules[0]['type'] == RULE_LESS
     assert rules[1]['type'] == RULE_GREATER
     assert rules[2]['type'] == RULE_REGEX
+    assert rules[3]['type'] == RULE_REGEX_NOT
     assert rules[0]['attribute'] == 'caca'
     assert rules[1]['attribute'] == 'raca'
     assert rules[2]['attribute'] == 'oaca'
+    assert rules[3]['attribute'] == 'maca'
     assert rules[0]['value'] == 4
     assert rules[1]['value'] == 5
     assert rules[2]['value'] == 'zaca'
+    assert rules[3]['value'] == 'daca'
 
 
 def parse_rule(rule_text):
     '''Return the parsed rule.'''
+
+    # RULE_REGEX_NOT must be parsed first since it contains 2 charactes and
+    # otherwise the expresion will be parsed as RULE_REGEX
+    rule = get_rule(rule_text, RULE_REGEX_NOT)
+    if rule is not None:
+        return rule
+
     rule = get_rule(rule_text, RULE_REGEX)
     if rule is not None:
         return rule
@@ -587,7 +636,7 @@ def parse_rule(rule_text):
         return rule
 
     # We should not reach this point
-    raise ExpresionError('Unknow conditon "%s".' % rule_text)
+    raise ExpressionError('Unknow conditon "%s".' % rule_text)
 
 
 def test_parse_rule():
@@ -595,13 +644,16 @@ def test_parse_rule():
     # Expression error is raised if expression is not valid
     try:
         parse_rule('caca')
-    except ExpresionError:
+    except ExpressionError:
         pass
     except:
-        assert False, 'ExpresionError not raised.'
+        assert False, 'ExpressionError not raised.'
 
     rule = parse_rule(' caca ~ maca ')
     assert rule['type'] == RULE_REGEX
+
+    rule = parse_rule('caca!~ maca')
+    assert rule['type'] == RULE_REGEX_NOT
 
     rule = parse_rule(' caca < 3 ')
     assert rule['type'] == RULE_LESS
@@ -617,7 +669,7 @@ def get_rule(rule_text, rule_identifier):
 
     Rule is a dictionary using the following format:
         rule = {
-            'type': [LESS|GREATER|REGEX],
+            'type': [LESS|GREATER|REGEX|REGEX_NOT],
             'attribute': ATTRIBUTE_VALUE,
             'value': VALUE|INTEGER,
             }
@@ -629,19 +681,20 @@ def get_rule(rule_text, rule_identifier):
         value = parts[1].strip()
 
         if len(value) < 1:
-            raise ExpresionError(
+            raise ExpressionError(
                 'Value can not be emptry for "%s".' % rule_text)
 
-        if rule_identifier != RULE_REGEX:
+        if (rule_identifier == RULE_LESS or
+            rule_identifier == RULE_GREATER):
             # Convert value to integer for non-regex rules.
             try:
                 value = int(value)
             except ValueError:
-                raise ExpresionError(
+                raise ExpressionError(
                     'Value must be an integer for "%s".' % rule_text)
 
         if len(attribute) < 1:
-            raise ExpresionError(
+            raise ExpressionError(
                 'Attribute can not be empty for "%s".' % rule_text)
 
         return {
@@ -671,6 +724,11 @@ def test_get_rule():
     assert rule['attribute'] == 'caca'
     assert rule['value'] == 'maca'
 
+    rule = get_rule('caca!~maca', RULE_REGEX_NOT)
+    assert rule['type'] == RULE_REGEX_NOT
+    assert rule['attribute'] == 'caca'
+    assert rule['value'] == 'maca'
+
     rule = get_rule(' caca < 3 ', RULE_LESS)
     assert rule['type'] == RULE_LESS
     assert rule['attribute'] == 'caca'
@@ -684,34 +742,34 @@ def test_get_rule():
     # Value can not be empty.
     try:
         get_rule('caca < ', RULE_LESS)
-    except ExpresionError:
+    except ExpressionError:
         pass
     except:
-        assert False, 'ExpresionError not raised.'
+        assert False, 'ExpressionError not raised.'
 
     # Attribute can not be empty.
     try:
         get_rule('> ceva', RULE_GREATER)
-    except ExpresionError:
+    except ExpressionError:
         pass
     except:
-        assert False, 'ExpresionError not raised.'
+        assert False, 'ExpressionError not raised.'
 
     # Less value should be an integer.
     try:
         get_rule('caca < vaca', RULE_LESS)
-    except ExpresionError:
+    except ExpressionError:
         pass
     except:
-        assert False, 'ExpresionError not raised.'
+        assert False, 'ExpressionError not raised.'
 
     # Greater value should be an integer.
     try:
         get_rule('caca > vaca', RULE_GREATER)
-    except ExpresionError:
+    except ExpressionError:
         pass
     except:
-        assert False, 'ExpresionError not raised.'
+        assert False, 'ExpressionError not raised.'
 
 
 def product_to_string(product):
@@ -894,7 +952,7 @@ if __name__ == "__main__":
         products = filter_products(
             products=get_all_products(options.category_id),
             expression=options.filter)
-    except ExpresionError, error:
+    except ExpressionError, error:
         print str(error)
         print 'See --help for usage'
         sys.exit(2)
