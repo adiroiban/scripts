@@ -28,9 +28,9 @@ EMAG_RESIGILATE_LINK_RE = 'resigilate/p(\d+)'
 # Attribute value can end with a new line, end of text or some <tag>
 EMAG_RESIGILATE_ATTRIBUTE_RE ='<strong>(.*):</strong>([^<]*)'
 
-# SMTP server used for sending emails. Set None for using default server.
-EMAIL_SERVER = None
-# SMTP server port. Ignored if EMAIL_SERVER is None.
+# SMTP server used for sending emails.
+EMAIL_SERVER = '127.0.0.1'
+# SMTP server port.
 # Make sure your provider is not blocking port 25.
 # For Dreamhost you can use 587
 EMAIL_PORT = 25
@@ -50,7 +50,7 @@ EMAIL_SUBJECT_NO_RESULTS = '[no news]'
 # Text use as email subject.
 EMAIL_SUBJECT = 'Results from eMag resigilate'
 # Signature used for email message.
-EMAIL_SIGNATURE = '\n\n--\nYour faithful servant,\nRobocut'
+EMAIL_SIGNATURE = '\n--\nYour faithful servant,\nRobocut'
 
 
 def get_all_products(category_id):
@@ -785,13 +785,10 @@ def email_products(products, options):
     # envelope header.
     server = None
     try:
-        if EMAIL_SERVER is None:
-            server = SMTP()
-        else:
-            server = SMTP(EMAIL_SERVER, EMAIL_PORT)
+        server = SMTP(EMAIL_SERVER, EMAIL_PORT)
         if EMAIL_TLS:
             server.starttls()
-        if EMAIL_USERNAME is not None:
+        if EMAIL_USERNAME:
             server.login(EMAIL_USERNAME, EMAIL_PASSWORD)
         server.sendmail(
             EMAIL_FROM, [options.email],
