@@ -740,10 +740,17 @@ def product_to_string(product):
     return result
 
 
+def products_to_string(products):
+    '''List all products.'''
+    results = []
+    for product in products:
+        results.append(product_to_string(product))
+    return '\n'.join(results)
+
+
 def list_products(products):
     '''List products.'''
-    for product in products:
-        print product_to_string(product)
+    print products_to_string(products)
 
 
 def email_products(products, options):
@@ -768,8 +775,9 @@ def email_products(products, options):
         'Using filter expression: "%s"\n\n' % (
             products_count, options.category_id, options.filter))
 
+    products_details = products_to_string(products)
     message = MIMEText(
-        message_header + product_to_string(products) + EMAIL_SIGNATURE)
+        message_header + products_details + EMAIL_SIGNATURE)
     message['Subject'] = email_subject
     message['From'] = EMAIL_FROM
     message['To'] = options.email
