@@ -928,6 +928,9 @@ def get_options_or_print_help():
         '--email-subject', action='store', type='string',
         dest='email_subject', default='', metavar='SUBJECT',
         help='Use SUBJECT as email subject.')
+    parser.add_option(
+        '-s', '--silent', action='store_true', dest='silent', default=False,
+        help='Do not output/email anything if no results were found.')
 
     (options, args) = parser.parse_args()
     if len(args) > 0:
@@ -956,6 +959,9 @@ if __name__ == "__main__":
         print str(error)
         print 'See --help for usage'
         sys.exit(2)
+
+    if options.silent and len(products) < 1:
+        sys.exit(1)
 
     if options.email != '':
         email_products(products, options)
