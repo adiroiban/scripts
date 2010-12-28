@@ -789,7 +789,7 @@ def email_products(products, options):
             server = SMTP()
         else:
             server = SMTP(EMAIL_SERVER, EMAIL_PORT)
-        if not EMAIL_TLS:
+        if EMAIL_TLS:
             server.starttls()
         if EMAIL_USERNAME is not None:
             server.login(EMAIL_USERNAME, EMAIL_PASSWORD)
