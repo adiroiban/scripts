@@ -425,11 +425,11 @@ EXPRESSION is a comma delimited of CONDITIONS: COND1,COND2,etc...
 A product is listed only if it passes ALL conditions.
 CONDITION can have one of the following formats:
 ATTRIBUTE < INTEGER_VALUE, ATTRIBUTE > INTEGER_VALUE,
-ATTRIBUTE = REGULAR_EXPRESION. Condition VALUES are not allowd to contain
-the following characters '=,<,>'.
-Examples: "price<100,name=[Ss]ome.*thing"
+ATTRIBUTE ~ REGULAR_EXPRESION. Condition VALUES are not allowed to contain
+the following characters '~,<,>'.
+Examples: "price<100,name~[Ss]ome.*thing"
 '''
-RULE_REGEX = '='
+RULE_REGEX = '~'
 RULE_LESS = '<'
 RULE_GREATER = '>'
 
@@ -485,10 +485,10 @@ def test_filter_products():
         {'name': 'caca', 'price': 400},
         ]
 
-    filtered_products = filter_products(products_list, 'name=caca')
+    filtered_products = filter_products(products_list, 'name~caca')
     assert len(filtered_products) == 2
 
-    filtered_products = filter_products(products_list, 'name=caca,price<300')
+    filtered_products = filter_products(products_list, 'name~caca,price<300')
     assert len(filtered_products) == 1
 
 
@@ -523,7 +523,7 @@ def test_does_product_match_rule():
         'price': 10,
         }
     assert does_product_match_rule(
-        product, parse_rule('caca=maca')) is False
+        product, parse_rule('caca~maca')) is False
     assert does_product_match_rule(
         product, parse_rule('price<9')) is False
     assert does_product_match_rule(
@@ -534,7 +534,7 @@ def test_does_product_match_rule():
     assert does_product_match_rule(
         product, parse_rule('price>9')) is True
     assert does_product_match_rule(
-        product, parse_rule('name=(some|caca)')) is True
+        product, parse_rule('name~(some|caca)')) is True
 
 
 def parse_expression(expression):
@@ -560,7 +560,7 @@ def test_parse_expression():
     rules = parse_expression('')
     assert len(rules) == 0
 
-    rules = parse_expression('caca <4,raca>5, oaca=zaca ')
+    rules = parse_expression('caca <4,raca>5, oaca~zaca ')
     assert len(rules) == 3
     assert rules[0]['type'] == RULE_LESS
     assert rules[1]['type'] == RULE_GREATER
@@ -601,7 +601,7 @@ def test_parse_rule():
     except:
         assert False, 'ExpresionError not raised.'
 
-    rule = parse_rule(' caca = maca ')
+    rule = parse_rule(' caca ~ maca ')
     assert rule['type'] == RULE_REGEX
 
     rule = parse_rule(' caca < 3 ')
@@ -662,7 +662,7 @@ def test_get_rule():
     rule = get_rule('caca', RULE_REGEX)
     assert rule is None
 
-    rule = get_rule(' caca = maca ', RULE_REGEX)
+    rule = get_rule(' caca ~ maca ', RULE_REGEX)
     assert rule['type'] == RULE_REGEX
     assert rule['attribute'] == 'caca'
     assert rule['value'] == 'maca'
