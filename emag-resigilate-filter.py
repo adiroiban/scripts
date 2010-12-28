@@ -4,7 +4,7 @@ It depends on re and BeatifulSoup.
 
 See tests for valid input.
 
-Created by Adi Roiban. Distributed under WTFPL 2.0.
+Distributed under WTFPL 2.0.
 '''
 
 import re
@@ -12,7 +12,6 @@ import sys
 import urllib2
 from email.mime.text import MIMEText
 from optparse import OptionParser
-from pprint import pprint, pformat
 from smtplib import SMTP, SMTPServerDisconnected
 from socket import error as SocketError
 from BeautifulSoup import BeautifulSoup
@@ -340,6 +339,13 @@ def get_product(product_div):
         'div', {'class': 'pret-produs-listing-rsg'})
     product['old-price'] = get_price(old_price_span)
     product['price'] = get_price(new_price_span)
+    product['discount'] = product['old-price'] - product['price']
+
+    if product['discount'] < 1:
+        product['discount-percentage'] = 0
+    else:
+        product['discount-percentage'] = int(round(
+            100/(product['old-price']/float(product['discount']))))
     return product
 
 
@@ -370,14 +376,14 @@ def test_get_product():
         <div class="top">
         <div class="pret-vechi" title="Pret vechi">
         <span class="old-price">
-            4.189,<sup class="money-decimal">99</sup> Lei
+            10.000,<sup class="money-decimal">99</sup> Lei
         </span>
         <span class="price-diff">
-            (-490,<sup class="money-decimal">00</sup> Lei)
+            (-2.500,<sup class="money-decimal">00</sup> Lei)
         </span>
         </div>
         <div class="pret-produs-listing-rsg">
-            3.699,<sup class="money-decimal">99</sup> Lei
+            7.500,<sup class="money-decimal">99</sup> Lei
         </div>
         ADD_TO_CHART_STUFF
         </div>
@@ -385,8 +391,10 @@ def test_get_product():
     product = get_product(create_tag(product_tag))
     assert product['name'] == 'PRODUCT_NAME'
     assert product['link'] == EMAG_BASE_URL + 'LINK_TO_PRODUCT'
-    assert product['price'] == 3699.99
-    assert product['old-price'] == 4189.99
+    assert product['price'] == 7500
+    assert product['old-price'] == 10000
+    assert product['discount'] == 2500
+    assert product['discount-percentage'] == 25
     assert product['attr1_name'] == 'ATTR1_VALUE'
     assert product['attr2_name'] == 'ATTR2_VALUE luni'
 
@@ -398,8 +406,7 @@ def get_price(price_span):
     and then appending the string with '.DECIMALS'
     '''
     decimals = price_span.first().string
-    return float(
-        re.sub('\D', '', price_span.contents[0]).strip() + '.' + decimals)
+    return int(re.sub('\D', '', price_span.contents[0]).strip())
 
 
 def test_get_price():
@@ -410,7 +417,7 @@ def test_get_price():
         </span>
         ''')
     price = get_price(tag)
-    assert price == 4189.99
+    assert price == 4189
 
 
 EXPRESSION_HELP = '''
@@ -703,9 +710,40 @@ def test_get_rule():
         assert False, 'ExpresionError not raised.'
 
 
+def product_to_string(product):
+    '''Return a nice string representatation of the product.'''
+    SPECIAL_ATTRIBUTES = [
+        'name', 'price', 'old-price', 'discount', 'discount-percentage',
+        'link']
+
+    details = []
+    for key, value in product.items():
+        if key not in SPECIAL_ATTRIBUTES:
+            details.append('%s: %s' % (key, value))
+
+    result = (
+        'name: %s\n'
+        'price: %d RON\n'
+        'discount: %d RON\n'
+        'percentage: %d%%\n'
+        'old-price: %d RON\n'
+        '%s\n'
+        'link: %s\n' % (
+            product['name'],
+            product['price'],
+            product['discount'],
+            product['discount-percentage'],
+            product['old-price'],
+            '\n'.join(details),
+            product['link'],
+            ))
+    return result
+
+
 def list_products(products):
     '''List products.'''
-    pprint(products)
+    for product in products:
+        print product_to_string(product)
 
 
 def email_products(products, options):
@@ -730,7 +768,8 @@ def email_products(products, options):
         'Using filter expression: "%s"\n\n' % (
             products_count, options.category_id, options.filter))
 
-    message = MIMEText(message_header + pformat(products) + EMAIL_SIGNATURE)
+    message = MIMEText(
+        message_header + product_to_string(products) + EMAIL_SIGNATURE)
     message['Subject'] = email_subject
     message['From'] = EMAIL_FROM
     message['To'] = options.email
