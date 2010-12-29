@@ -334,7 +334,7 @@ def get_product(product_div):
     product = {}
 
     details_div = product_div.find('div', {'class': 'col-2-prod'})
-    product['name'] = details_div.find('a').string.strip()
+    product['name'] = tag_to_plain_text(details_div.find('a'))
     product['link'] = (
         EMAG_BASE_URL + details_div.find('a').get('href').strip())
     for attribute_li in details_div.findAll('li'):
@@ -342,7 +342,7 @@ def get_product(product_div):
         re_match = re.search(EMAG_RESIGILATE_ATTRIBUTE_RE, content)
         if re_match:
             product[re_match.group(1).strip().lower()] = (
-                re_match.group(2).strip())
+                re_match.group(2).strip().decode('utf-8'))
         else:
             print (
                 'Failed to get attribute.\n'
@@ -782,7 +782,6 @@ def product_to_string(product):
     for key, value in product.items():
         if key not in SPECIAL_ATTRIBUTES:
             details.append('%s: %s' % (key, value))
-
     result = (
         'name: %s\n'
         'price: %d RON\n'
@@ -865,6 +864,12 @@ def email_products(products, options):
     except SMTPServerDisconnected, error:
         print 'Server does not accepts our credentials.'
         return
+
+
+def tag_to_plain_text(tag):
+    '''Return the plain text representation of a tag.'''
+    all_texts = tag.findAll(text=True)
+    return u''.join(all_texts)
 
 
 def create_tag(text):

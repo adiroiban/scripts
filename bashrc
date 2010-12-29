@@ -71,11 +71,11 @@ alias l10n-gnome-git-done-d="/home/adi/dev/scripts/l10n/gnome-git-done-dan.sh"
 alias l10n-gnome-git-2-30="git checkout --track -b gnome-2-30 origin/gnome-2-30"
 
 # Chevah stuff
-alias chevah-code-status="/home/adi/chevah/utils/devel/scripts/chevah-code-status.sh"
+alias chevah-code-status="/home/adi/chevah/commons/devel/scripts/chevah-code-status.sh"
 alias ccs=chevah-code-status
-alias chevah-code-get="/home/adi/chevah/utils/devel/scripts/chevah-code-get.sh"
+alias chevah-code-get="/home/adi/chevah/commons/devel/scripts/chevah-code-get.sh"
 alias ccg=chevah-code-get
-alias chevah-code-push="/home/adi/chevah/utils/devel/scripts/chevah-code-push.sh"
+alias chevah-code-push="/home/adi/chevah/commons/devel/scripts/chevah-code-push.sh"
 alias ccp=chevah-code-push
 
 export PATH=$PATH:/home/adi/dev/java/ant/bin
