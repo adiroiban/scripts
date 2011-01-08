@@ -79,22 +79,23 @@ def get_all_products(category_id=None):
     '''
     results = []
     results.extend(
-        get_all_products_from_type(
+        get_all_products_from_path(
             EMAG_RESIGILATE_PATH,
-            get_all_products_from_page_content,
+            get_all_resigilate_products_from_page_content,
             category_id))
-#    results.extend(
-#        get_all_products_from_type(
-#            EMAG_LICHIDARI_PATH,
-#            get_all_products_from_page_content,
-#            category_id))
+    results.extend(
+        get_all_products_from_path(
+            EMAG_LICHIDARI_PATH,
+            get_all_lichidari_products_from_page_content,
+            category_id))
     return results
 
 
-def get_all_products_from_type(page_path, products_fetcher, category_id=None):
-    '''Return a list of all products from base_url.
+def get_all_products_from_path(page_path, products_fetcher, category_id=None):
+    '''Return a list of all products from page path.
 
     `products_fetcher` is the function used to parse all products form page.
+
     If category is None it will get all products from all categories.
     '''
 
@@ -142,8 +143,8 @@ def test_get_page():
         assert False, 'urllib2.URLError not raised.'
 
 
-def get_all_products_from_page_content(soup):
-    '''Return a list of all products from a page.'''
+def get_all_resigilate_products_from_page_content(soup):
+    '''Return a list of all products from a resigilate page.'''
     products_div = soup.findAll(
         "div", {"style": "height:auto; position:relative;"})
     result = []
@@ -152,8 +153,8 @@ def get_all_products_from_page_content(soup):
     return result
 
 
-def test_get_all_products_from_page_content():
-    '''Test getting the list of products from a page.'''
+def test_get_all_resigilate_products_from_page_content():
+    '''Test getting the list of products from a resigilate page.'''
     page = create_soup('''
         <div class="content-with-sidebar">
         <div class="products-pagination">
@@ -238,8 +239,18 @@ def test_get_all_products_from_page_content():
         <div style="clear:both; height:5px;"></div>
         </div>
         ''')
-    products = get_all_products_from_page_content(page)
+    products = get_all_resigilate_products_from_page_content(page)
     assert len(products) == 2
+
+
+def get_all_lichidari_products_from_page_content(soup):
+    '''Return a list of all products from a lichidari page.'''
+    products_div = soup.findAll(
+        'form', {'action': 'https://www.emag.ro/addtocart', 'method': 'post'})
+    result = []
+    for product_div in products_div:
+        result.append(get_product(product_div))
+    return result
 
 
 def get_number_of_pages(soup, page_type):
@@ -380,11 +391,33 @@ def get_product(product_div):
                 'attribute content: %s\n' % (product['name'], content))
 
     price_div = product_div.find('div', {'class': 'col-3-prod'})
-    old_price_span = price_div.find('span', {'class': 'old-price'})
-    new_price_span = price_div.find(
+
+    # Try to see if we have a resigilate product and get the price
+    resigilate_price_span = price_div.find(
         'div', {'class': 'pret-produs-listing-rsg'})
-    product['old-price'] = get_price(old_price_span)
-    product['price'] = get_price(new_price_span)
+    if resigilate_price_span is not None:
+        new_price_span = price_div.find(
+            'div', {'class': 'pret-produs-listing-rsg'})
+        product['price'] = get_price(new_price_span)
+        old_price_span = price_div.find('span', {'class': 'old-price'})
+        product['old-price'] = get_price(old_price_span)
+
+    # Try to see if we have a lichidari product and get the price.
+    # Products from lichidari may have 0 discount.
+    lichidari_price_div = price_div.find(
+        'div', {'class': 'pret-produs-listing'})
+    if lichidari_price_div is not None:
+        old_price_span = price_div.find('span', {'class': 'old'})
+        if old_price_span is None:
+            # Looks like we have no discount.
+            product['price'] = get_price(lichidari_price_div)
+            product['old-price'] = product['price']
+        else:
+            product['old-price'] = get_price(old_price_span)
+            new_price_span = price_div.find('span', {'title': 'Pret nou'})
+            product['price'] = get_price(new_price_span)
+
+
     product['discount'] = product['old-price'] - product['price']
 
     if product['discount'] < 1:
@@ -397,6 +430,7 @@ def get_product(product_div):
 
 def test_get_product():
     '''Test getting of a product.'''
+    # Get resigilate product
     product_tag = '''
         <div style="height:auto; position:relative;">
         <div class="col-1-prod">
@@ -443,6 +477,103 @@ def test_get_product():
     assert product['discount-percentage'] == 25
     assert product['attr1_name'] == 'ATTR1_VALUE'
     assert product['attr2_name'] == 'ATTR2_VALUE luni'
+
+    # Get lichidari no discount
+    product_tag = '''
+        <form action="https://www.emag.ro/addtocart" method="post">
+        <input type="hidden" name="product[]" value="135336">
+        <div id="poza1" class="col-1-prod">
+        <div>
+        <a href="LINK_TO_PRODUCT" title="ceva">
+        <img src="PIC" alt="Lichidari de stoc" height="150" width="150">
+        </a>
+        <img src="PIC" alt="Lichidari de stoc" height="150" width="150">
+        </div></div>
+        <div class="col-2-prod">
+        <h2>
+        <a href="LINK_TO_PRODUCT" title="NAME">
+        PRODUCT_NAME
+        </a></h2><br>
+        <ul class="sp">
+        <li>
+        <strong>ATTR1_NAME:</strong> ATTR1_VALUE<br>
+        </li>
+        </ul>
+        <br>
+        <div class="clear"></div>
+        </div>
+        <div id="pret1" class="col-3-prod">
+        <div class="top">
+        <div class="produs-listing-price-box">
+        <div class="pret-produs-listing">
+        759,<sup class="money-decimal">99</sup> Lei
+        </div>
+        </div>
+        <span class="stare-disp-listing">
+        Stoc limitat
+        </span>
+        <a href="ADD_TO_CHART_LINK"></a>
+        <div class="clear"></div></div></div></form>
+        '''
+    product = get_product(create_tag(product_tag))
+    assert product['name'] == 'PRODUCT_NAME'
+    assert product['link'] == EMAG_BASE_URL + 'LINK_TO_PRODUCT'
+    assert product['price'] == 759
+    assert product['old-price'] == 759
+    assert product['discount'] == 0
+    assert product['discount-percentage'] == 0
+    assert product['attr1_name'] == 'ATTR1_VALUE'
+
+    # Get lichidari with discount
+    product_tag = '''
+        <form action="https://www.emag.ro/addtocart" method="post">
+        <input type="hidden" name="product[]" value="128529">
+        <div id="poza3" class="col-1-prod">
+        <div>
+        <a href="LINK" rel="nofollow" class="link_imagine" title="ceva">
+        <img src="LINK_POZA" alt="Lichidari de stoc" height="150" width="150">
+        </a>
+        <img src="POZA" alt="Lichidari de stoc" height="150" width="150">
+        </div></div>
+        <div class="col-2-prod">
+        <h2><a href="LINK_TO_PRODUCT" title="tile-here">
+        PRODUCT_NAME
+        </a>
+        </h2>
+        <br>
+        <ul class="sp">
+        <li>
+        <strong>ATTR1_NAME:</strong> ATTR1_VALUE<br>
+        </li>
+        </ul>
+        <br>
+        <!-- Link compara cu alte produse -->
+        <div class="clear"></div></div>
+        <div id="pret3" class="col-3-prod">
+        <div class="top">
+        <div class="produs-listing-price-box">
+        <div class="pret-produs-listing">
+        <span class="old" style="ceva" title="Pret vechi">
+            394,<sup class="money-decimal">99</sup> Lei</span>
+        <span title="Pret nou">
+            355,<sup class="money-decimal">49</sup> Lei</span>
+        <span> (-10 %)</span>
+        </div>
+        </div>
+        <span class="stare-disp-listing">
+        Stoc limitat
+        </span>
+        <a href="CART_LINK" rel="nofollow"></a>
+        <div class="clear"></div></div></div></form>
+    '''
+    product = get_product(create_tag(product_tag))
+    assert product['name'] == 'PRODUCT_NAME'
+    assert product['link'] == EMAG_BASE_URL + 'LINK_TO_PRODUCT'
+    assert product['price'] == 355
+    assert product['old-price'] == 394
+    assert product['discount'] == 39
+    assert product['discount-percentage'] == 10
+    assert product['attr1_name'] == 'ATTR1_VALUE'
 
 
 def get_price(price_span):
@@ -899,7 +1030,7 @@ def email_products(products, options):
 def tag_to_plain_text(tag):
     '''Return the plain text representation of a tag.'''
     all_texts = tag.findAll(text=True)
-    return u''.join(all_texts).strip('\n\t ')
+    return u''.join(all_texts).strip('\r\n\t ')
 
 
 def create_tag(text):
@@ -960,7 +1091,7 @@ def get_options_or_print_help():
         help='Filter products based on EXPRESSION. %s' % EXPRESSION_HELP)
     parser.add_option(
         '-e', '--send-email', action='store', type='string', dest='email',
-        default='', metavar='EMAIL', help='Send results to EMAIL.')
+        default=None, metavar='EMAIL', help='Send results to EMAIL.')
     parser.add_option(
         '--email-subject', action='store', type='string',
         dest='email_subject', default='', metavar='SUBJECT',
@@ -984,6 +1115,10 @@ if __name__ == "__main__":
         run_all_tests(options.test_exit)
         sys.exit(0)
 
+    if options.category_id is None and options.email is None:
+        print 'Getting all categories will take a while...'
+        print 'Hope your patience will get a hefty reward!'
+
     try:
         products = filter_products(
             products=get_all_products(options.category_id),
@@ -996,7 +1131,7 @@ if __name__ == "__main__":
     if options.silent and len(products) < 1:
         sys.exit(1)
 
-    if options.email != '':
+    if options.email is not None:
         email_products(products, options)
     else:
         list_products(products)
