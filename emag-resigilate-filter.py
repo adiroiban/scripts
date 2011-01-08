@@ -18,16 +18,16 @@ from socket import error as SocketError
 from BeautifulSoup import BeautifulSoup
 
 EMAG_BASE_URL = 'http://www.emag.ro'
-EMAG_RESIGILATE_BASE_URL = 'http://www.emag.ro/resigilate'
 
-# Regular expression for searching page link
-# group 1 should contain the page number.
-EMAG_RESIGILATE_LINK_RE = 'resigilate/p(\d+)'
+# Name of the resigilate and lichidari page path
+# This name is used for parsing URL to find page numbers and get products.
+EMAG_RESIGILATE_PATH = 'resigilate'
+EMAG_LICHIDARI_PATH = 'lichidari'
 
 # Regular expression for search product attributes
 # group 1 should contain the name and group 2 the value
 # Attribute value can end with a new line, end of text or some <tag>
-EMAG_RESIGILATE_ATTRIBUTE_RE ='<strong>(.*):</strong>([^<]*)'
+EMAG_RESIGILATE_ATTRIBUTE_RE ='<strong>(.*)</strong>([^<]*)'
 
 # SMTP server used for sending emails.
 EMAIL_SERVER = '127.0.0.1'
@@ -70,24 +70,45 @@ RULE_LESS = '<'
 RULE_GREATER = '>'
 
 
-def get_all_products(category_id):
+def get_all_products(category_id=None):
     '''Returns a list of dictionaries containing all products in a
     category.
 
     This function is a bit complicated to test since it requries to fetch
     multiple pages.
     '''
+    results = []
+    results.extend(
+        get_all_products_from_type(
+            EMAG_RESIGILATE_PATH,
+            get_all_products_from_page_content,
+            category_id))
+#    results.extend(
+#        get_all_products_from_type(
+#            EMAG_LICHIDARI_PATH,
+#            get_all_products_from_page_content,
+#            category_id))
+    return results
 
+
+def get_all_products_from_type(page_path, products_fetcher, category_id=None):
+    '''Return a list of all products from base_url.
+
+    `products_fetcher` is the function used to parse all products form page.
+    If category is None it will get all products from all categories.
+    '''
+
+    base_url = EMAG_BASE_URL + '/' + page_path
     try:
-        page = get_page(category_id, 1)
+        page = get_page(base_url, category_id, 1)
     except urllib2.URLError:
-        print 'Server not found at %s.' % (EMAG_RESIGILATE_BASE_URL)
+        print 'Server not found at %s.' % (base_url)
         return
     except urllib2.HTTPError:
-        print 'Page not found at %s.' % (EMAG_RESIGILATE_BASE_URL)
+        print 'Page not found at %s.' % (base_url)
         return
 
-    number_of_pages = get_number_of_pages(page)
+    number_of_pages = get_number_of_pages(page, page_path)
     if number_of_pages < 1:
         return []
 
@@ -95,38 +116,33 @@ def get_all_products(category_id):
     for page_number in xrange(1, number_of_pages + 1):
         # We already got the first page... so avoid making a new request.
         if page_number != 1:
-            page = get_page(category_id, page_number)
-        result.extend(get_all_products_from_page(page))
+            page = get_page(base_url, category_id, page_number)
+        result.extend(products_fetcher(page))
     return result
 
 
-def get_page(category_id, page_nr):
+def get_page(base_url, category_id=None, page_nr=1):
     '''Return the page content.'''
-    url = "%s/p%d?catid=%d" % (
-        EMAG_RESIGILATE_BASE_URL, page_nr, category_id)
+    if category_id is None:
+        url = "%s/p%d" % (base_url, page_nr)
+    else:
+        url = "%s/p%d?catid=%d" % (base_url, page_nr, category_id)
     page = urllib2.urlopen(url)
     return BeautifulSoup(page)
 
 
 def test_get_page():
     '''Test the retrieval of a page.'''
-
-    # Test bad URL
-    global EMAG_RESIGILATE_BASE_URL
-    prev_url = EMAG_RESIGILATE_BASE_URL
-    EMAG_RESIGILATE_BASE_URL = 'http://nosuch.domain.in.world/page'
+    base_url = 'http://nosuch.domain.in.world/page'
     try:
-        try:
-            get_page(1, 1)
-        except urllib2.URLError:
-            pass
-        except:
-            assert False, 'urllib2.URLError not raised.'
-    finally:
-        EMAG_RESIGILATE_BASE_URL = prev_url
+        get_page(base_url, 1, 1)
+    except urllib2.URLError:
+        pass
+    except:
+        assert False, 'urllib2.URLError not raised.'
 
 
-def get_all_products_from_page(soup):
+def get_all_products_from_page_content(soup):
     '''Return a list of all products from a page.'''
     products_div = soup.findAll(
         "div", {"style": "height:auto; position:relative;"})
@@ -136,7 +152,7 @@ def get_all_products_from_page(soup):
     return result
 
 
-def test_get_all_products_from_page():
+def test_get_all_products_from_page_content():
     '''Test getting the list of products from a page.'''
     page = create_soup('''
         <div class="content-with-sidebar">
@@ -222,11 +238,11 @@ def test_get_all_products_from_page():
         <div style="clear:both; height:5px;"></div>
         </div>
         ''')
-    products = get_all_products_from_page(page)
+    products = get_all_products_from_page_content(page)
     assert len(products) == 2
 
 
-def get_number_of_pages(soup):
+def get_number_of_pages(soup, page_type):
     '''Return the number of pages in, based on the list presented on the
     category first page.
 
@@ -245,7 +261,8 @@ def get_number_of_pages(soup):
     else:
         # Otherwise the number of page is contained in the last link.
         last_page_link = page_links[-1].get('href')
-        result = re.search(EMAG_RESIGILATE_LINK_RE, last_page_link)
+        page_url_re = page_type + '/p(\d+)'
+        result = re.search(page_url_re, last_page_link)
         assert result, 'Could not get the number of pages.'
         return int(result.group(1))
 
@@ -255,7 +272,7 @@ def test_get_number_of_pages():
 
     # Zero pages
     soup = create_soup('''<div something=else>caca</div>''')
-    pages = get_number_of_pages(soup)
+    pages = get_number_of_pages(soup, page_type=EMAG_RESIGILATE_PATH)
     assert pages == 0, 'Failed to get number of pages for one page.'
 
     # Format when a single page exists:
@@ -265,7 +282,7 @@ def test_get_number_of_pages():
         <span class="pagini-options-2">1</span>
         </div>
         ''')
-    pages = get_number_of_pages(soup)
+    pages = get_number_of_pages(soup, page_type=EMAG_RESIGILATE_PATH)
     assert pages == 1, 'Failed to get number of pages for one page.'
 
     # Format when there are few pages (maximum of 4 ... I guess):
@@ -276,7 +293,19 @@ def test_get_number_of_pages():
         <a class="pagini-options-2" href="/resigilate/p2">2</a>
         </div>
         ''')
-    pages = get_number_of_pages(soup)
+    pages = get_number_of_pages(soup, page_type=EMAG_RESIGILATE_PATH)
+    assert pages == 2, 'Failed to get number of pages for few pages.'
+
+    # Format when there are few pages for lichidari
+    # (maximum of 4 ... I guess):
+    soup = create_soup('''
+        <div class="holder-pagini-2">
+        <span class="pagini-2">Pagini:</span>
+        <span class="pagini-options-2">1</span>
+        <a class="pagini-options-2" href="/lichidari/p2">2</a>
+        </div>
+        ''')
+    pages = get_number_of_pages(soup, page_type=EMAG_LICHIDARI_PATH)
     assert pages == 2, 'Failed to get number of pages for few pages.'
 
     # Format when there are many pages:
@@ -291,7 +320,7 @@ def test_get_number_of_pages():
         <a class="pagini-options-2" href="/resigilate/p9">SOMETHING</a>
         <div>
         ''')
-    pages = get_number_of_pages(soup)
+    pages = get_number_of_pages(soup, page_type=EMAG_RESIGILATE_PATH)
     assert pages == 9, 'Failed to get number of pages for many pages.'
 
 
@@ -341,8 +370,9 @@ def get_product(product_div):
         content = attribute_li.renderContents()
         re_match = re.search(EMAG_RESIGILATE_ATTRIBUTE_RE, content)
         if re_match:
-            product[re_match.group(1).strip().lower()] = (
-                re_match.group(2).strip().decode('utf-8'))
+            attribute_name = re_match.group(1).strip(' :').lower()
+            attribute_value = re_match.group(2).strip().decode('utf-8')
+            product[attribute_name] = attribute_value
         else:
             print (
                 'Failed to get attribute.\n'
@@ -869,7 +899,7 @@ def email_products(products, options):
 def tag_to_plain_text(tag):
     '''Return the plain text representation of a tag.'''
     all_texts = tag.findAll(text=True)
-    return u''.join(all_texts)
+    return u''.join(all_texts).strip('\n\t ')
 
 
 def create_tag(text):
@@ -913,8 +943,10 @@ def get_options_or_print_help():
 
     parser.add_option(
         '-c', '--category-id', action='store', type="int", dest='category_id',
-        metavar="ID", default=0,
-        help='Products category ID to get.')
+        metavar="ID", default=None,
+        help=(
+            'Products category ID to get. If no category is specified the '
+            'script will get products from all categories.'))
     parser.add_option(
         '-t', '--run-tests', action='store_true', dest='test', default=False,
         help='Run the (primitive) test suite.')
@@ -951,10 +983,6 @@ if __name__ == "__main__":
     if options.test:
         run_all_tests(options.test_exit)
         sys.exit(0)
-
-    if options.category_id == 0:
-        print 'You must provide a category ID. See --help for usage.'
-        sys.exit(1)
 
     try:
         products = filter_products(
