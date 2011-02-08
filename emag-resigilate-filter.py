@@ -62,7 +62,8 @@ EXPRESSION_HELP = '''
     '<' and '>' can only be used for integer values.
     Condition VALUES are not allowed to contain the following characters
     '~,!~,<,>'.
-    Examples: "price<100,name~[Ss]ome.*thing,attr!~dont"
+    Space characters form ATTRIBUTE names will be replaces with - (dash).
+    Examples: "price<100,name~[Ss]ome.*thing,attr-name!~dont"
     '''
 RULE_REGEX = '~'
 RULE_REGEX_NOT = '!~'
@@ -352,7 +353,7 @@ def get_product(product_div):
         <br />
     </li>
     <li>
-    <strong>ATTR2_NAME:</strong> ATTR2_VALUE<br />
+    <strong>ATTR2 NAME:</strong> ATTR2_VALUE<br />
     </li>
     </ul>
     </div>
@@ -382,6 +383,7 @@ def get_product(product_div):
         re_match = re.search(EMAG_RESIGILATE_ATTRIBUTE_RE, content)
         if re_match:
             attribute_name = re_match.group(1).strip(' :').lower()
+            attribute_name = attribute_name.strip().replace(' ', '-')
             attribute_value = re_match.group(2).strip().decode('utf-8')
             product[attribute_name] = attribute_value
         else:
@@ -448,7 +450,7 @@ def test_get_product():
             <br />
         </li>
         <li>
-        <strong>ATTR2_NAME:</strong> ATTR2_VALUE luni
+        <strong>ATTR2 NAME:</strong> ATTR2_VALUE luni
         </li>
         </ul>
         </div>
@@ -476,7 +478,7 @@ def test_get_product():
     assert product['discount'] == 2500
     assert product['discount-percentage'] == 25
     assert product['attr1_name'] == 'ATTR1_VALUE'
-    assert product['attr2_name'] == 'ATTR2_VALUE luni'
+    assert product['attr2-name'] == 'ATTR2_VALUE luni'
 
     # Get lichidari no discount
     product_tag = '''
