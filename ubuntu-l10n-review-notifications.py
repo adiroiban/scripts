@@ -305,7 +305,7 @@ def get_page(batch_start, language_code, release_code):
 def list_rss(reviews, options):
     '''Return a RSS2 XML for reviews.'''
     base_url = REVIEW_BASE_URL % (
-        options.release.lower(), options.language.lower())
+        options.release.lower(), options.language)
     title = RSS_TITLE % {
         'release': options.release,
         'language': options.language,
@@ -345,8 +345,8 @@ def list_rss(reviews, options):
         print u'<guid>%s-%f</guid>' % (review['url'], now)
         print u'</item>'
 
-    print '</channel>'
-    print '</rss>'
+    print u'</channel>'
+    print u'</rss>'
 
 
 def reviews_to_string(reviews):
@@ -514,7 +514,7 @@ if __name__ == "__main__":
         print 'See --help for usage.'
         sys.exit(2)
     reviews = get_all_reviews(
-        options.language.lower(), options.release.lower())
+        options.language, options.release.lower())
 
     if options.email is not None:
         send_email(reviews, options)
