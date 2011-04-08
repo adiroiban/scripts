@@ -316,19 +316,19 @@ def list_rss(reviews, options):
         }
     date = time_to_rfc822()
     now = time.time()
-    print u'<?xml version="1.0"?>'
-    print u'<rss version="2.0">'
-    print u'<channel>'
-    print u'<title>%s</title>' % (title)
-    print u'<link>%s</link>' % (base_url)
-    print u'<description>%s</description>' % (description)
-    print u'<language>en-us</language>'
-    print u'<pubDate>%s</pubDate>' % date
-    print u'<lastBuildDate>%s</lastBuildDate>' % date
-    print u'<docs>http://blogs.law.harvard.edu/tech/rss</docs>'
-    print u'<generator>Translations Review Scraper</generator>'
-    print u'<managingEditor>editor@example.com</managingEditor>'
-    print u'<webMaster>webmaster@example.com</webMaster>'
+    print '<?xml version="1.0"?>'
+    print '<rss version="2.0">'
+    print '<channel>'
+    print '<title>%s</title>' % (title.encode('UTF-8'))
+    print '<link>%s</link>' % (base_url)
+    print '<description>%s</description>' % (description.encode('UTF-8'))
+    print '<language>en-us</language>'
+    print '<pubDate>%s</pubDate>' % date.encode('UTF-8')
+    print '<lastBuildDate>%s</lastBuildDate>' % date.encode('UTF-8')
+    print '<docs>http://blogs.law.harvard.edu/tech/rss</docs>'
+    print '<generator>Translations Review Scraper</generator>'
+    print '<managingEditor>editor@example.com</managingEditor>'
+    print '<webMaster>webmaster@example.com</webMaster>'
 
     for review in reviews:
         description = RSS_ITEM_DESCRIPTION % {
@@ -337,16 +337,17 @@ def list_rss(reviews, options):
             'date': review['date'],
             'last_editor': review['last_editor'],
             }
-        print u'<item>'
-        print u'<title>%s - %s</title>' % (review['name'], review['nr'])
-        print u'<link>%s%s</link>' % (
+        print '<item>'
+        print '<title>%s - %s</title>' % (
+            review['name'].encode('UTF-8'), review['nr'])
+        print '<link>%s%s</link>' % (
             TRANSLATIONS_BASE_URL, review['url'])
-        print u'<description>%s</description>' % (description)
-        print u'<guid>%s-%f</guid>' % (review['url'], now)
-        print u'</item>'
+        print '<description>%s</description>' % (description.encode('UTF-8'))
+        print '<guid>%s-%f</guid>' % (review['url'], now)
+        print '</item>'
 
-    print u'</channel>'
-    print u'</rss>'
+    print '</channel>'
+    print '</rss>'
 
 
 def reviews_to_string(reviews):
