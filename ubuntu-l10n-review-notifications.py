@@ -19,7 +19,8 @@ from socket import error as SocketError
 from BeautifulSoup import BeautifulSoup
 
 TRANSLATIONS_BASE_URL = 'https://translations.launchpad.net'
-REVIEW_BASE_URL = 'https://translations.launchpad.net/ubuntu/%s/+lang/%s'
+REVIEW_BASE_URL = (
+    'https://translations.launchpad.net/ubuntu/%s/+lang/%s/+index')
 BATCH_SIZE = 300
 RSS_TITLE = 'Ubuntu %(release)s translation reviews for %(language)s'
 RSS_DESCRIPTION = (
@@ -313,6 +314,7 @@ def list_rss(reviews, options):
         'language': options.language,
         }
     date = time_to_rfc822()
+    now = time.time()
     print '<?xml version="1.0"?>'
     print '<rss version="2.0">'
     print '<channel>'
@@ -338,7 +340,7 @@ def list_rss(reviews, options):
         print '<title>%s - %s</title>' % (review['name'], review['nr'])
         print '<link>%s%s</link>' % (TRANSLATIONS_BASE_URL, review['url'])
         print '<description>%s</description>' % (description)
-        print '<guid>%s</guid>' % review['url']
+        print '<guid>%s-%f</guid>' % (review['url'], now)
         print '</item>'
 
     print '</channel>'
@@ -515,5 +517,5 @@ if __name__ == "__main__":
 
     if options.email is not None:
         send_email(reviews, options)
-    else:
-        list_rss(reviews, options)
+
+    list_rss(reviews, options)
