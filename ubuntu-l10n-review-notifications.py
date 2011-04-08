@@ -18,21 +18,21 @@ from smtplib import SMTP, SMTPServerDisconnected
 from socket import error as SocketError
 from BeautifulSoup import BeautifulSoup
 
-TRANSLATIONS_BASE_URL = 'https://translations.launchpad.net'
+TRANSLATIONS_BASE_URL = u'https://translations.launchpad.net'
 REVIEW_BASE_URL = (
-    'https://translations.launchpad.net/ubuntu/%s/+lang/%s/+index')
-BATCH_SIZE = 300
-RSS_TITLE = 'Ubuntu %(release)s translation reviews for %(language)s'
+    u'https://translations.launchpad.net/ubuntu/%s/+lang/%s/+index')
+BATCH_SIZE = 150
+RSS_TITLE = u'Ubuntu %(release)s translation reviews for %(language)s'
 RSS_DESCRIPTION = (
-    'RSS feeds for Ubuntu %(release)s translations in %(language)s that have '
-    'new suggestions requried to be reviewed.')
+    u'RSS feeds for Ubuntu %(release)s translations in %(language)s that '
+    u'have new suggestions requried to be reviewed.')
 RSS_ITEM_DESCRIPTION = (
-    'Template "%(name)s" has %(count)d new suggestions waiting to be '
-    'reviewed. Template was last changed by %(last_editor)s on %(date)s.')
+    u'Template "%(name)s" has %(count)d new suggestions waiting to be '
+    u'reviewed. Template was last changed by %(last_editor)s on %(date)s.')
 
-EMAIL_TAG = '[lp-new-suggestions] '
+EMAIL_TAG = u'[lp-new-suggestions] '
 # SMTP server used for sending emails.
-EMAIL_SERVER = '127.0.0.1'
+EMAIL_SERVER = u'127.0.0.1'
 # SMTP server port.
 # Make sure your provider is not blocking port 25.
 # For Dreamhost you can use 587
@@ -42,18 +42,18 @@ EMAIL_TLS = False
 # SMTP username. Set None for not using SMTP authentication
 EMAIL_USERNAME = None
 #  SMTP password. Ignored if EMAIL_USERNAME is None.
-EMAIL_PASSWORD = ''
+EMAIL_PASSWORD = u''
 
 # Email address use to set the From email field.
-EMAIL_FROM = 'Ubuntu Translations Reviews <no-reply@example.com>'
+EMAIL_FROM = u'Ubuntu Translations Reviews <no-reply@example.com>'
 # Subject tag when products list is not empty.
-EMAIL_SUBJECT_GOT_RESULTS = '[good news]'
+EMAIL_SUBJECT_GOT_RESULTS = u'[good news]'
 # Subject tag when no products list is empty.
-EMAIL_SUBJECT_NO_RESULTS = '[no news]'
+EMAIL_SUBJECT_NO_RESULTS = u'[no news]'
 # Text use as email subject.
-EMAIL_SUBJECT = 'Results from Ubunut translations reviews'
+EMAIL_SUBJECT = u'Results from Ubuntu translations reviews'
 # Signature used for email message.
-EMAIL_SIGNATURE = '\n--\nYour faithful servant,\nRobocut'
+EMAIL_SIGNATURE = u'\n--\nYour faithful servant,\nRobocut'
 
 
 def get_all_reviews(language_code, release_code):
@@ -101,7 +101,8 @@ def get_page_reviews(page):
         needs_review_url = needs_review_link.get('href')
         template_name = cells[0].find('a').string
         last_edited_by = cells[7].find('a').string
-        last_edited_time = cells[6].find('span', {'class': 'sortkey'}).string
+        last_edited_time = cells[6].find(
+            'span', {'class': 'sortkey'}).string
         results.append({
             'name': template_name,
             'nr': needs_review_nr,
@@ -315,19 +316,19 @@ def list_rss(reviews, options):
         }
     date = time_to_rfc822()
     now = time.time()
-    print '<?xml version="1.0"?>'
-    print '<rss version="2.0">'
-    print '<channel>'
-    print '<title>%s</title>' % (title)
-    print '<link>%s</link>' % (base_url)
-    print '<description>%s</description>' % (description)
-    print '<language>en-us</language>'
-    print '<pubDate>%s</pubDate>' % date
-    print '<lastBuildDate>%s</lastBuildDate>' % date
-    print '<docs>http://blogs.law.harvard.edu/tech/rss</docs>'
-    print '<generator>Translations Review Scraper</generator>'
-    print '<managingEditor>editor@example.com</managingEditor>'
-    print '<webMaster>webmaster@example.com</webMaster>'
+    print u'<?xml version="1.0"?>'
+    print u'<rss version="2.0">'
+    print u'<channel>'
+    print u'<title>%s</title>' % (title)
+    print u'<link>%s</link>' % (base_url)
+    print u'<description>%s</description>' % (description)
+    print u'<language>en-us</language>'
+    print u'<pubDate>%s</pubDate>' % date
+    print u'<lastBuildDate>%s</lastBuildDate>' % date
+    print u'<docs>http://blogs.law.harvard.edu/tech/rss</docs>'
+    print u'<generator>Translations Review Scraper</generator>'
+    print u'<managingEditor>editor@example.com</managingEditor>'
+    print u'<webMaster>webmaster@example.com</webMaster>'
 
     for review in reviews:
         description = RSS_ITEM_DESCRIPTION % {
@@ -336,12 +337,13 @@ def list_rss(reviews, options):
             'date': review['date'],
             'last_editor': review['last_editor'],
             }
-        print '<item>'
-        print '<title>%s - %s</title>' % (review['name'], review['nr'])
-        print '<link>%s%s</link>' % (TRANSLATIONS_BASE_URL, review['url'])
-        print '<description>%s</description>' % (description)
-        print '<guid>%s-%f</guid>' % (review['url'], now)
-        print '</item>'
+        print u'<item>'
+        print u'<title>%s - %s</title>' % (review['name'], review['nr'])
+        print u'<link>%s%s</link>' % (
+            TRANSLATIONS_BASE_URL, review['url'])
+        print u'<description>%s</description>' % (description)
+        print u'<guid>%s-%f</guid>' % (review['url'], now)
+        print u'</item>'
 
     print '</channel>'
     print '</rss>'
@@ -352,11 +354,11 @@ def reviews_to_string(reviews):
     results = []
     for review in reviews:
         results.append(
-            'Template: %s\n'
-            'New suggestion: %d\n'
-            'URL: %s%s\n'
-            'Last reviewer: %s\n'
-            'Last changed date: %s\n'
+            u'Template: %s\n'
+            u'New suggestion: %d\n'
+            u'URL: %s%s\n'
+            u'Last reviewer: %s\n'
+            u'Last changed date: %s\n'
             '\n' % (
                 review['name'],
                 review['nr'],
@@ -375,13 +377,12 @@ def send_email(reviews, options):
     if reviews_count < 1:
         return
 
-    email_subject = ''
     if not options.email_subject:
         email_main_subject = EMAIL_SUBJECT
     else:
         email_main_subject = options.subject
 
-    email_subject = '%s%s' % (EMAIL_TAG, email_main_subject)
+    email_subject = u'%s%s' % (EMAIL_TAG, email_main_subject)
 
     message_header = (
         'Got %d templates with suggestions that needs to be approved.\n\n' % (
