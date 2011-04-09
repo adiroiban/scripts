@@ -100,9 +100,15 @@ def get_page_reviews(page):
         needs_review_nr = int(needs_review_link.string)
         needs_review_url = needs_review_link.get('href')
         template_name = cells[0].find('a').string
-        last_edited_by = cells[7].find('a').string
-        last_edited_time = cells[6].find(
-            'span', {'class': 'sortkey'}).string
+        last_edited_by_link = cells[7].find('a')
+        if last_edited_by_link:
+            last_edited_by = last_edited_by_link.string
+            last_edited_time = cells[6].find(
+                'span', {'class': 'sortkey'}).string
+        else:
+            last_edited_by = u'Nobody'
+            last_edited_time = u'Never'
+
         results.append({
             'name': template_name,
             'nr': needs_review_nr,
