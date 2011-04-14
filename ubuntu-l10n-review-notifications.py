@@ -46,10 +46,6 @@ EMAIL_PASSWORD = u''
 
 # Email address use to set the From email field.
 EMAIL_FROM = u'Ubuntu Translations Reviews <no-reply@example.com>'
-# Subject tag when products list is not empty.
-EMAIL_SUBJECT_GOT_RESULTS = u'[good news]'
-# Subject tag when no products list is empty.
-EMAIL_SUBJECT_NO_RESULTS = u'[no news]'
 # Text use as email subject.
 EMAIL_SUBJECT = u'Results from Ubuntu translations reviews'
 # Signature used for email message.
@@ -396,9 +392,9 @@ def send_email(reviews, options):
             reviews_count))
 
     email_details = reviews_to_string(reviews)
+    email_content = message_header + email_details + EMAIL_SIGNATURE
 
-    message = MIMEText(
-        message_header + email_details + EMAIL_SIGNATURE)
+    message = MIMEText(email_content.encode('utf-8'))
     message['Subject'] = email_subject
     message['From'] = EMAIL_FROM
     message['To'] = options.email
