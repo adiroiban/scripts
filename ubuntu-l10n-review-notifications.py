@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-'''This is the base code for scraping 'Launchpad Ubuntu Translations' webpage
+'''This is the base code for scraping 'Launchpad Ubuntu Translations' webpage.
 
-It depends on re and BeatifulSoup.
+It depends on BeatifulSoup.
 
 See tests for valid input.
 
@@ -304,6 +304,45 @@ def get_page(batch_start, language_code, release_code):
         sys.exit(-1)
 
 
+def get_excluded_templates(templates_raw_list):
+    '''Parse the excluded templates string and return a list of templates.'''
+    templates = templates_raw_list.split(',')
+    templates = [template.strip().lower() for template in templates]
+    templates = [template for template in templates if template != '']
+    return templates
+
+
+def test_get_excluded_templates():
+    templates = get_excluded_templates('tmp1,Tmp2, tmp3, tmp4 ,, tmp5,')
+    assert (
+        ['tmp1', 'tmp2', 'tmp3', 'tmp4', 'tmp5'] == templates)
+
+
+def filter_reviews(reviews, templates_raw_list):
+    '''Remove excluded templates from reviews.'''
+    excluded_templates = get_excluded_templates(templates_raw_list)
+    result = []
+    for review in reviews:
+        if review['name'].lower() not in excluded_templates:
+            result.append(review)
+    return result
+
+
+def test_filter_reviews():
+    reviews = [
+        {'name': 'tmp1'},
+        {'name': 'tmp2'},
+        {'name': 'tmp3'},
+        {'name': 'tmp4'},
+    ]
+    reviews_filter = [
+        {'name': 'tmp2'},
+        {'name': 'tmp4'},
+    ]
+    filtered_reviews = filter_reviews(reviews, 'tmp1,tmp3')
+    assert (reviews_filter == filtered_reviews)
+
+
 def list_rss(reviews, options):
     '''Return a RSS2 XML for reviews.'''
     base_url = REVIEW_BASE_URL % (
@@ -483,6 +522,10 @@ def get_options_or_print_help():
         help=(
             'Ubuntu release name. Ex. lucid, natty ... etc.'))
     parser.add_option(
+        '-x', '--exclude-templates', action='store', type='string',
+        dest='exclude', default=None, metavar='POT1,POT2',
+        help='Exclude the comma separated templates from the result.')
+    parser.add_option(
         '-t', '--run-tests', action='store_true', dest='test', default=False,
         help='Run the (primitive) test suite.')
     parser.add_option(
@@ -518,6 +561,9 @@ if __name__ == "__main__":
         sys.exit(2)
     reviews = get_all_reviews(
         options.language, options.release.lower())
+
+    if options.exclude:
+        reviews = filter_reviews(reviews, options.exclude)
 
     if options.email is not None:
         send_email(reviews, options)
