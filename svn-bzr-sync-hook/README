@@ -1,0 +1,6 @@
+This code is under public license.
+
+This is a SVN post commit hook that will update a BZR mirror.
+
+Put the post-commit-sync-bzr.sh script somewhere on the SVN
+server and invoke it from the post-commit hook.
